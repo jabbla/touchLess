@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <link href="Baymax.css" rel="stylesheet" type="text/css"/>
+    <style>
+        html {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-flow: row nowrap;
+            justify-content: center;
+            align-items: center;
+        }
+        #camera {
+            position: absolute;
+            visibility: hidden;
+        }
+        #panel, #temp {
+            position: absolute;
+            visibility: hidden;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); 
+        }
+        #paint {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); 
+        }
+        .test {
+            position: absolute;
+            width: 960px;
+            height: 640px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); 
+        }
+        .initial {
+            position: absolute;
+            transition: transform 1s ease-in-out;
+            background-color: red;
+            border-radius: 50%;
+        }
+
+        .touched1 {
+            transform: scale(10.0);
+        }
+
+        .container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 960px;
+            height: 640px;
+            transform: translate(-50%, -50%);
+        }
+        .Control {
+            position: absolute;
+            left: 200px;
+            top: 0;
+            width: 50px;
+        }
+        .headControler {
+            box-sizing: border-box;
+            width: 50px;
+            height: 50px;
+            background-color: green;
+            transition: all 1s ease-in-out;
+            border: 5px solid white;
+            border-radius: 50%;
+            margin-top: 20px;
+        }
+        .bodyControler {
+            box-sizing: border-box;
+            width: 50px;
+            height: 50px;
+            background-color: #49a9ee;
+            transition: all 1s ease-in-out;
+            border: 5px solid white;
+            border-radius: 50%;
+            margin-top: 20px;
+        }
+        .handsControler {
+            box-sizing: border-box;
+            width: 50px;
+            height: 50px;
+            background-color: #f04134;
+            transition: all 1s ease-in-out;
+            border: 5px solid white;
+            border-radius: 50%;
+            margin-top: 20px;
+        }
+        .folder {
+            border-radius: 0%;
+            background-color: black;
+            transform: scale(0.5);
+        }
+        .show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <video id="camera" width="960" height="640"></video>
+    <canvas width="960" height="640" id="canvas"></canvas>
+    <canvas width="960" height="640" id="panel"></canvas>
+    <canvas width="960" height="640" id="paint"></canvas>
+    <canvas width="960" height="640" id="temp"></canvas>
+    <div class="test" id="test"></div>
+    <div class="container" id="container">
+        <div id="Control" class="Control">
+            <div class="headControler" id="c1"></div>
+            <div class="bodyControler" id="c2"></div>
+            <div class="handsControler" id="c3"></div>
+            <div class="legsControler" id="c4"></div>
+        </div>
+        <div class="Baymax">
+            <div class="head" id="Bhead">
+                <div class="cover-s"><div class="left"></div><div class="right"></div></div>
+                    <div class="cover-x"><div class="left"></div><div class="right"></div></div>
+                <div class="eyes-l"></div>
+                    <div class="eyes-r"></div>
+                    <div class="mourse"></div>
+                </div>
+                <div class="hand-l" id="handl">
+                <div class="hl-l"></div>
+                <div class="f-1"></div>
+                    <div class="f-2"></div>
+                    <div class="f-3"></div>
+                </div>
+                <div class="hand-r" id="handr">
+                <div class="hr-r"></div>
+                <div class="fr-1"></div>
+                    <div class="fr-2"></div>
+                    <div class="fr-3"></div>
+                </div>
+                <div class="body" id="Bbody">
+                <div class="heart"></div>
+                <div class="belly"></div>
+            </div>
+            <div class="leg-l" id="legl"></div>
+            <div class="leg-r" id="legr"></div>
+        </div>
+    </div>
+    
+    <script src="Utils.js"></script>
+    <script id="shader-fs" type="x-shader/x-fragment">
+        precision mediump float;
+
+        uniform sampler2D u_image;
+        uniform vec2 u_textureSize;
+        uniform float u_kernelX[9];
+        uniform float u_kernelY[9];
+        
+        uniform float u_pointer[4];
+
+        uniform float u_fragStep;
+
+        uniform float u_circleState[2];
+
+        varying vec2 v_texCoord;
+
+        /*目标坐标的灰度计算*/
+        float magn(vec2 texCoord){
+            vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+
+            vec4 cur = texture2D(u_image, texCoord);
+            float avg = (cur.r + cur.g + cur.b) / 3.0;
+
+            vec4 ltcorner = texture2D(u_image, texCoord - onePixel);
+            float ltavg =  (ltcorner.r + ltcorner.g + ltcorner.b) / 3.0;
+
+
+            vec4 ct = texture2D(u_image, texCoord - vec2(0.0, onePixel.y));
+            float ctavg =  (ct.r + ct.g + ct.b) / 3.0;
+
+            vec4 rtcorner = texture2D(u_image, texCoord + vec2(onePixel.x, -onePixel.y));
+            float rtavg =  (rtcorner.r + rtcorner.g + rtcorner.b) / 3.0;
+
+            vec4 lc = texture2D(u_image, texCoord + vec2(-onePixel.x, 0.0));
+            float lcavg =  (lc.r + lc.g + lc.b) / 3.0;
+
+            vec4 rc = texture2D(u_image, texCoord + vec2(onePixel.x, 0.0));
+            float rcavg =  (rc.r + rc.g + rc.b) / 3.0;
+
+            vec4 lb = texture2D(u_image, texCoord + vec2(-onePixel.x, onePixel.y));
+            float lbavg =  (lb.r + lb.g + lb.b) / 3.0;
+
+            vec4 cb = texture2D(u_image, texCoord + vec2(0.0, onePixel.y));
+            float cbavg =  (cb.r + cb.g + cb.b) / 3.0;
+
+            vec4 rb = texture2D(u_image, texCoord + vec2(onePixel.x, onePixel.y));
+            float rbavg =  (rb.r + rb.g + rb.b) / 3.0;
+
+            float midX = (ltavg * u_kernelX[0]) + (ctavg * u_kernelX[1]) + (rtavg * u_kernelX[2]) +
+                         (lcavg * u_kernelX[3]) + (avg * u_kernelX[4]) + (rcavg * u_kernelX[5]) +
+                         (lbavg * u_kernelX[6]) + (cbavg * u_kernelX[7]) + (rbavg * u_kernelX[8]);
+            
+            float midY = (ltavg * u_kernelY[0]) + (ctavg * u_kernelY[1]) + (rtavg * u_kernelY[2]) +
+                         (lcavg * u_kernelY[3]) + (avg * u_kernelY[4]) + (rcavg * u_kernelY[5]) +
+                         (lbavg * u_kernelY[6]) + (cbavg * u_kernelY[7]) + (rbavg * u_kernelY[8]);
+
+            float result = sqrt((midX * midX) + (midY * midY));
+            result = (result * 255.0) > 60.0 ? 1.0 : 0.0;
+
+            return result;
+        }
+
+        /*坐标转换*/
+        vec2 convertPosition(vec2 position){
+            vec2 pos = position / u_textureSize;
+
+            return vec2(1.0 - pos.x, pos.y);
+        }
+
+        /*探测碎片区域*/
+        bool detectFragArea(vec2 pointStart, vec2 pointEnd, vec4 color){
+            /*获取当前坐标*/
+            float X = v_texCoord.x;
+            float Y = v_texCoord.y;
+
+            /*转换*/
+            vec2 convertedStart = convertPosition(pointStart);
+            vec2 convertedEnd = convertPosition(pointEnd);
+            /*获取碎片位置*/
+
+            float frag_startX = convertedStart.x;
+            float frag_startY = convertedStart.y;
+
+            float frag_endX = convertedEnd.x;
+            float frag_endY = convertedEnd.y;
+
+            /*渲染碎片范围*/
+            if( X < frag_startX && X > frag_endX && Y > frag_startY && Y < frag_endY){
+                gl_FragColor = color;
+                return true;
+            }
+
+        }
+
+        /*探测圆形区域*/
+        bool detectCircleArea(vec2 center, float radius, vec4 color){
+            /*获取当前坐标*/
+            float X = v_texCoord.x;
+            float Y = v_texCoord.y;
+
+            /*获取圆心坐标*/
+            vec2 convertedCenter = convertPosition(center);
+
+            float centerX = convertedCenter.x;
+            float centerY = convertedCenter.y;
+
+            /*计算距离*/
+            float distanceX = (X - centerX) * (X - centerX) * u_textureSize.x * u_textureSize.x;
+            float distanceY = (Y - centerY) * (Y - centerY) * u_textureSize.y * u_textureSize.y;
+
+            if(distanceX*distanceY <= radius*radius){
+                gl_FragColor = color;
+                return true;
+            }
+        }
+
+        /*第一个圆的触摸探测*/
+        bool detectTouch(vec2 center, float radius){
+            vec2 convertedCenter = convertPosition(center);
+            if(magn(convertedCenter)==1.0){
+                /*探测到触摸*/
+                if(detectCircleArea(center, radius, vec4(1.0, 1.0, 1.0, 1.0))){
+                    return true;
+                }
+            }else{
+                if(detectCircleArea(center, radius, vec4(0.0, 1.0, 0.0, 1.0))){
+                    return true;
+                }
+            }
+        }
+        void main(void) {
+
+            float magnitude = magn(v_texCoord);
+
+            vec2 frag_start = vec2(u_pointer[0] ,u_pointer[1]);
+            vec2 frag_end = vec2(u_pointer[2] ,u_pointer[3]);
+            /*锚点区域*/
+            //if(detectFragArea(frag_start, frag_end, vec4(1.0, 0.0, 0.0, 1.0))){
+            //    return;
+            //}
+
+            /*碎片区域1*/
+            vec2 circle1Center = vec2(940, 200);
+            float circle1Radius = 10.0;
+
+            /*探测触摸行为*/
+            //if(detectTouch(circle1Center, circle1Radius)){
+            //    return;
+            //}
+            
+            gl_FragColor = vec4(
+                magnitude,
+                magnitude,
+                magnitude,
+                1
+                );
+        }
+    </script>
+    <script id="shader-vs" type="x-shader/x-vertex">
+        attribute vec2 a_position;
+        attribute vec2 a_texCoord;
+
+        uniform vec2 u_resolution;
+
+        varying vec2 v_texCoord;
+
+        void main() {
+            // convert the rectangle from pixels to 0.0 to 1.0
+            vec2 zeroToOne = a_position / u_resolution;
+
+            // convert from 0->1 to 0->2
+            vec2 zeroToTwo = zeroToOne * 2.0;
+
+            // convert from 0->2 to -1->+1 (clipspace)
+            vec2 clipSpace = zeroToTwo - 1.0;
+
+            gl_Position = vec4(clipSpace * vec2(-1, -1), 0, 1);
+
+            // pass the texCoord to the fragment shader
+            // The GPU will interpolate this value between points.
+            v_texCoord = a_texCoord;
+        }
+    </script>
+    <script>
+        (function(){
+            var oCamera = document.getElementById('camera');
+
+            navigator.getUserMedia({
+                video: {
+                    mandatory: {
+                        minWidth: oCamera.width,
+                        minHeight: oCamera.height,
+                        maxWidth: oCamera.width,
+                        maxHeight: oCamera.height
+                    }
+                },
+                audio: false,
+            },onSuccess,onError);
+
+            function onSuccess(stream){
+                oCamera.src = window.URL.createObjectURL(stream);
+            };
+            function onError(error){
+                console.log(error);
+            };
+        })();  
+    </script>
+    <script src="init.js"></script>
+    <script>
+        // Panel = document.getElementById('panel');
+        // panelCtx = Panel.getContext('2d');
+        // panelCtx.fillStyle = "red";
+        // panelCtx.fillRect(120,200,50,50);
+    </script>
+</body>
+</html>
